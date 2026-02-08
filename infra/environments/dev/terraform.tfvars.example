@@ -1,0 +1,26 @@
+# Copy to terraform.tfvars and fill in values
+
+region = "eu-central-1"
+
+project = "two-tier-app"
+env     = "dev"
+
+# Optional (defaults to 10.10.0.0/16)
+vpc_cidr = "10.10.0.0/16"
+
+# Optional (defaults shown)
+public_subnet_cidrs = ["10.10.0.0/24", "10.10.1.0/24"]
+app_subnet_cidrs    = ["10.10.10.0/24", "10.10.11.0/24"]
+db_subnet_cidrs     = ["10.10.20.0/24", "10.10.21.0/24"]
+
+# Required
+ecr_image_uri = "<account>.dkr.ecr.<region>.amazonaws.com/<repo>:<tag>"
+
+github_org  = "<github-org>"
+github_repo = "<github-repo>"
+
+domain_name       = "app.example.com"
+route53_zone_name = "example.com"
+
+# Required (CloudWatch alarms notify via SNS -> email)
+alarm_email = "you@example.com"

@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+
+{% block title %}{{ post.title }} - Flask Blog{% endblock %}
+
+{% block content %}
+<div class="post-detail">
+    <article class="post">
+        <h2>{{ post.title }}</h2>
+        <p class="post-meta">Posted on {{ post.created_at.strftime('%B %d, %Y at %I:%M %p') }}</p>
+        <div class="post-content">
+            {{ post.content }}
+        </div>
+    </article>
+
+    <div class="post-actions">
+        <a href="{{ url_for('index') }}" class="btn btn-secondary">&larr; Back to All Posts</a>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,10 @@
+# Copy to backend.hcl and adjust if needed
+# Bucket/table are created by infra/bootstrap
+
+bucket         = "two-tier-app-terraform-state"
+dynamodb_table = "two-tier-app-terraform-lock"
+region         = "eu-central-1"
+encrypt        = true
+
+# Keep state keys unique per environment
+key = "two-tier-app/prod/terraform.tfstate"

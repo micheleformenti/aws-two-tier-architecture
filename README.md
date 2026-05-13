@@ -71,7 +71,7 @@ app/                       # Reference Flask app (containerized)
 		templates/ static/
 
 infra/
-	bootstrap/               # S3 + DynamoDB for Terraform remote state
+	bootstrap/               # S3 Object Lock backend for Terraform remote state
 	environments/
 		dev/                   # Environment wrapper around the module
 		prod/
@@ -97,7 +97,7 @@ Optional:
 This creates:
 
 - S3 bucket for Terraform state (versioning + encryption + public access blocked)
-- DynamoDB table for state locking
+- S3 Object Lock enabled at bucket creation with a 1-day default governance retention
 
 From `infra/bootstrap/`:
 
@@ -116,7 +116,7 @@ From `infra/environments/dev/` (repeat similarly for `prod/`):
 cp backend.hcl.example backend.hcl
 ```
 
-Edit `backend.hcl` if you changed the bootstrap project/region, and ensure the `key` is unique per environment.
+Edit `backend.hcl` if you changed the bootstrap project/region, ensure the `key` is unique per environment.
 
 Then:
 

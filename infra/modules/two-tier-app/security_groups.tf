@@ -1,6 +1,6 @@
 # Security Group for Application Load Balancer (ALB) 
 resource "aws_security_group" "sg_alb" {
-  name        = "sg_alb"
+  name        = "${var.project}-${var.env}-sg-alb"
   description = "Allows connections to ALB on port 443"
   vpc_id      = aws_vpc.vpc.id
 
@@ -40,7 +40,7 @@ resource "aws_vpc_security_group_egress_rule" "allow_app_traffic_ipv4" {
 
 # Security Group for ECS Tasks
 resource "aws_security_group" "sg_tasks" {
-  name        = "sg_tasks"
+  name        = "${var.project}-${var.env}-sg-tasks"
   description = "Allows from ALB to ECS tasks on port var.app_port"
   vpc_id      = aws_vpc.vpc.id
 
@@ -111,7 +111,7 @@ resource "aws_vpc_security_group_egress_rule" "allow_tasks_to_rds_postgres" {
 
 # Security group for Interface VPC Endpoints (PrivateLink)
 resource "aws_security_group" "sg_vpc_endpoints" {
-  name        = "sg_vpc_endpoints"
+  name        = "${var.project}-${var.env}-sg-vpc-endpoints"
   description = "Allows private subnets to reach AWS services via Interface VPC Endpoints"
   vpc_id      = aws_vpc.vpc.id
 
@@ -140,7 +140,7 @@ resource "aws_vpc_security_group_egress_rule" "allow_vpc_endpoints_egress_to_vpc
 
 # Security Group for RDS Instance
 resource "aws_security_group" "sg_rds" {
-  name        = "sg_rds"
+  name        = "${var.project}-${var.env}-sg-rds"
   description = "Allows from tasks to RDS on port 5432"
   vpc_id      = aws_vpc.vpc.id
 

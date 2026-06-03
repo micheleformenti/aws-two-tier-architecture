@@ -27,7 +27,7 @@ resource "aws_db_instance" "rds" {
 }
 
 resource "aws_db_subnet_group" "rds_subnet_group" {
-  name       = "rds_subnet_group"
+  name       = "${var.project}-${var.env}-rds-subnet-group"
   subnet_ids = [aws_subnet.db_subnet_az1.id, aws_subnet.db_subnet_az2.id]
 
   tags = {

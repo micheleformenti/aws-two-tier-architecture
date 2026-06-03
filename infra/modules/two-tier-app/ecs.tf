@@ -94,6 +94,12 @@ resource "aws_ecs_service" "ecs_service" {
 
   depends_on = [aws_lb_listener.alb_listener_http]
 
+  lifecycle {
+    ignore_changes = [
+      task_definition,
+    ]
+  }
+
   tags = {
     Name = "${var.project}-${var.env}-service"
   }

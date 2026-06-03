@@ -23,6 +23,11 @@ output "ecs_service_name" {
   description = "ECS service name"
 }
 
+output "ecs_task_execution_role_arn" {
+  value       = aws_iam_role.ecs_task_execution_role.arn
+  description = "ECS task execution role ARN used by task definition revisions"
+}
+
 output "rds_endpoint" {
   value       = aws_db_instance.rds.endpoint
   description = "RDS database endpoint (address:port)"

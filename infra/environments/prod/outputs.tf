@@ -23,6 +23,11 @@ output "ecs_service_name" {
   description = "ECS service name"
 }
 
+output "ecs_task_execution_role_arn" {
+  value       = module.app.ecs_task_execution_role_arn
+  description = "ECS task execution role ARN used by task definition revisions"
+}
+
 output "rds_endpoint" {
   value       = module.app.rds_endpoint
   description = "RDS database endpoint (address:port)"

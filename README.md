@@ -12,7 +12,7 @@ The Flask app is a minimal scope application (a tiny blog) used to exercise the 
 - **No NAT Gateway design**: private workloads reach AWS APIs via **VPC Endpoints (PrivateLink + S3 gateway endpoint)**.
 - **Security fundamentals**: least-privilege security groups, encrypted RDS, Secrets Manager, TLS via ACM, Route 53 DNS.
 - **Operational baseline**: CloudWatch logs, alarms (SNS email), dashboard widgets, ALB access logs to S3.
-- **CI/CD-ready IAM**: GitHub Actions **OIDC role** to push images to ECR (no long-lived AWS keys).
+- **CI/CD-ready IAM**: GitHub Actions **OIDC role** to push images to ECR and deploy ECS task definition revisions (no long-lived AWS keys).
 
 ## Architecture
 
@@ -58,7 +58,7 @@ The `two-tier-app` module builds:
 - VPC Endpoints (ECR API/DKR, Logs, Secrets Manager, KMS, STS + S3 gateway)
 - CloudWatch log group, optional alarms + SNS topic + dashboard
 - Optional ALB access logs bucket (encrypted, versioned, blocked public access)
-- IAM role for GitHub Actions to push images to ECR via OIDC
+- IAM role for GitHub Actions to push images to ECR and deploy ECS via OIDC
 
 ## Repository layout
 
@@ -136,52 +136,47 @@ Fill in at least:
 - `domain_name`, `route53_zone_name`
 - `alarm_email` (you must confirm the SNS subscription email)
 
-### 4) Build + push the app image to ECR (GitHub Actions + OIDC, recommended)
+### 4) Build + deploy the app image with GitHub Actions + OIDC
 
-The module creates the ECR repository, but the ECS service needs an image URI. The recommended workflow is:
-
-1) Create the ECR repo + GitHub OIDC role first (targeted apply)
-2) Push an image from GitHub Actions (no long-lived AWS keys)
-3) Set `ecr_image_uri` to the pushed tag and apply the full stack
+The module creates the ECR repository, ECS service, and an initial task definition. After that, GitHub Actions owns application releases: it pushes a SHA-tagged image, renders a new ECS task definition revision from the existing task definition family, and updates the ECS service.
 
 From `infra/environments/dev/`:
 
 ```bash
-# Create ECR + IAM role first
-terraform apply \
-	-target=module.app.aws_ecr_repository.app_repo \
-	-target=module.app.aws_ecr_lifecycle_policy.app_repo_policy \
-	-target=module.app.aws_iam_role.github_actions_ecr_role \
-	-target=module.app.aws_iam_role_policy.github_actions_ecr_policy
+# Create ECR, ECS, and the GitHub Actions deploy role
+terraform apply
 
-# Capture outputs for your GitHub workflow
+# Capture outputs for your GitHub workflow variables
 terraform output -raw ecr_repository_url
 terraform output -raw github_actions_role_arn
+terraform output -raw ecs_cluster_name
+terraform output -raw ecs_service_name
+terraform output -raw ecs_task_execution_role_arn
 ```
 
 This repository includes a workflow at `.github/workflows/ci.yml` that:
 
-- Runs Ruff checks
+- Runs Ruff and pytest checks
 - Builds the Docker image from `app/Dockerfile`
-- On pushes to `main`, assumes the OIDC role and pushes to ECR
+- On pushes to `main`, assumes the OIDC role, pushes to ECR, registers a new ECS task definition revision, and updates the ECS service
 
-Configure these GitHub **Actions secrets**:
+Configure these GitHub **Actions variables**:
 
 - `AWS_REGION` (e.g. `eu-central-1`)
 - `AWS_ACCOUNT_ID` (12-digit account ID)
 - `OIDC_ROLE_ARN` (Terraform output: `github_actions_role_arn`)
 - `ECR_REPO` (the ECR repository name, typically `${project}-${env}`; e.g. `two-tier-app-dev`)
+- `ECS_CLUSTER` (Terraform output: `ecs_cluster_name`)
+- `ECS_SERVICE` (Terraform output: `ecs_service_name`)
+- `ECS_TASK_FAMILY` (typically `${project}-${env}-task`; e.g. `two-tier-app-dev-task`)
+- `ECS_CONTAINER_NAME` (typically `${project}-${env}`; e.g. `two-tier-app-dev`)
 
-Then push to `main` (or run the workflow manually). The workflow publishes tags:
+The workflow publishes tags:
 
 - `:main`
 - `:sha-<git sha>`
 
-Once an image tag exists in ECR, set `ecr_image_uri` in `terraform.tfvars` to something like:
-
-`<account>.dkr.ecr.<region>.amazonaws.com/<repo>:main`
-
-Then continue with the full apply.
+ECS deploys the immutable `:sha-<git sha>` tag for the commit that passed CI. Terraform ignores ECS service `task_definition` drift so future app deployments are not rolled back by normal infrastructure applies.
 
 ### 4b) Build + push manually (optional)
 

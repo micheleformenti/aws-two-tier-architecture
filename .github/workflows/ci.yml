@@ -31,8 +31,13 @@ jobs:
           python --version
           pip --version
 
-      - name: Install ruff
-        run: pip install ruff
+      - name: Install CI tools
+        run: pip install ruff pytest
+
+      - name: Install app deps (if you have requirements.txt)
+        working-directory: ${{ env.APP_DIR }}
+        run: |
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
       - name: Ruff check
         working-directory: ${{ env.APP_DIR }}
@@ -42,10 +47,9 @@ jobs:
         working-directory: ${{ env.APP_DIR }}
         run: ruff format --check .
 
-      - name: Install app deps (if you have requirements.txt)
+      - name: Pytest
         working-directory: ${{ env.APP_DIR }}
-        run: |
-          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+        run: python -m pytest
 
   docker_build:
     runs-on: ubuntu-latest

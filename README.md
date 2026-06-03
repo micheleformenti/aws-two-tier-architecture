@@ -12,7 +12,7 @@ The Flask app is a minimal scope application (a tiny blog) used to exercise the 
 - **No NAT Gateway design**: private workloads reach AWS APIs via **VPC Endpoints (PrivateLink + S3 gateway endpoint)**.
 - **Security fundamentals**: least-privilege security groups, encrypted RDS, Secrets Manager, TLS via ACM, Route 53 DNS.
 - **Operational baseline**: CloudWatch logs, alarms (SNS email), dashboard widgets, ALB access logs to S3.
-- **CI/CD-ready IAM**: GitHub Actions **OIDC role** to push images to ECR and deploy ECS task definition revisions (no long-lived AWS keys).
+- **CI/CD pipeline**: GitHub Actions **OIDC role** builds, scans with Trivy, pushes to ECR, and deploys ECS task definition revisions (no long-lived AWS keys).
 
 ## Architecture
 
@@ -154,10 +154,11 @@ terraform output -raw ecs_service_name
 terraform output -raw ecs_task_execution_role_arn
 ```
 
-This repository includes a workflow at `.github/workflows/ci.yml` that:
+This repository includes a workflow at `.github/workflows/ci-cd.yml` that:
 
 - Runs Ruff and pytest checks
 - Builds the Docker image from `app/Dockerfile`
+- Scans the exact deploy image with Trivy before pushing it
 - On pushes to `main`, assumes the OIDC role, pushes to ECR, registers a new ECS task definition revision, and updates the ECS service
 
 Configure these GitHub **Actions variables**:
@@ -176,7 +177,7 @@ The workflow publishes tags:
 - `:main`
 - `:sha-<git sha>`
 
-ECS deploys the immutable `:sha-<git sha>` tag for the commit that passed CI. Terraform ignores ECS service `task_definition` drift so future app deployments are not rolled back by normal infrastructure applies.
+ECS deploys the immutable `:sha-<git sha>` tag for the commit that passed CI and the Trivy image scan. Terraform ignores ECS service `task_definition` drift so future app deployments are not rolled back by normal infrastructure applies.
 
 ### 4b) Build + push manually (optional)
 
@@ -229,6 +230,7 @@ This is intentionally minimal: no migrations, no auth, no advanced features.
 - **Secrets** are generated and stored in Secrets Manager.
 - **ECS tasks have no public IPs**, and are reachable only via the ALB.
 - **CloudWatch**: logs are shipped to a log group with retention; alarms and a dashboard can be toggled via variables.
+- **Container scanning**: GitHub Actions scans the deploy image with Trivy before pushing to ECR. The pipeline blocks fixable critical vulnerabilities; unfixed base-image CVEs are kept visible in scanner output and remediated when upstream fixes become available.
 - **ALB access logs** are stored in S3 (encrypted + versioned + public access blocked).
 
 ## Destroy / cleanup

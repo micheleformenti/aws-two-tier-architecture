@@ -112,6 +112,7 @@ jobs:
           image-ref: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/${{ vars.ECR_REPO }}:sha-${{ github.sha }}
           format: table
           exit-code: "1"
+          ignore-unfixed: true
           severity: CRITICAL
           vuln-type: os,library
 

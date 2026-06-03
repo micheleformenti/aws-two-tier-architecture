@@ -158,26 +158,41 @@ This repository includes a workflow at `.github/workflows/ci-cd.yml` that:
 
 - Runs Ruff and pytest checks
 - Builds the Docker image from `app/Dockerfile`
-- Scans the exact deploy image with Trivy before pushing it
-- On pushes to `main`, assumes the OIDC role, pushes to ECR, registers a new ECS task definition revision, and updates the ECS service
+- Scans the image with Trivy on PRs and again before deployment
+- On pushes to `main`, assumes the dev OIDC role, pushes to dev ECR, registers a new ECS task definition revision, and updates the dev ECS service
+- Optionally promotes an existing SHA-tagged image from dev ECR to prod ECR through a manual `workflow_dispatch` run
 
-Configure these GitHub **Actions variables**:
+Configure these GitHub **Environment variables** for the `dev` environment:
 
 - `AWS_REGION` (e.g. `eu-central-1`)
 - `AWS_ACCOUNT_ID` (12-digit account ID)
-- `OIDC_ROLE_ARN` (Terraform output: `github_actions_role_arn`)
-- `ECR_REPO` (the ECR repository name, typically `${project}-${env}`; e.g. `two-tier-app-dev`)
-- `ECS_CLUSTER` (Terraform output: `ecs_cluster_name`)
-- `ECS_SERVICE` (Terraform output: `ecs_service_name`)
-- `ECS_TASK_FAMILY` (typically `${project}-${env}-task`; e.g. `two-tier-app-dev-task`)
-- `ECS_CONTAINER_NAME` (typically `${project}-${env}`; e.g. `two-tier-app-dev`)
+- `OIDC_ROLE_ARN` (dev Terraform output: `github_actions_role_arn`)
+- `ECR_REPO` (e.g. `two-tier-app-dev`)
+- `ECS_CLUSTER` (dev Terraform output: `ecs_cluster_name`)
+- `ECS_SERVICE` (dev Terraform output: `ecs_service_name`)
+- `ECS_TASK_FAMILY` (e.g. `two-tier-app-dev-task`)
+- `ECS_CONTAINER_NAME` (e.g. `two-tier-app-dev`)
 
-The workflow publishes tags:
+If you provision prod, configure these GitHub **Environment variables** for the `prod` environment:
+
+- `AWS_REGION`
+- `AWS_ACCOUNT_ID`
+- `OIDC_ROLE_ARN` (prod Terraform output: `github_actions_role_arn`)
+- `SOURCE_ECR_REPO` (e.g. `two-tier-app-dev`)
+- `ECR_REPO` (e.g. `two-tier-app-prod`)
+- `ECS_CLUSTER` (prod Terraform output: `ecs_cluster_name`)
+- `ECS_SERVICE` (prod Terraform output: `ecs_service_name`)
+- `ECS_TASK_FAMILY` (e.g. `two-tier-app-prod-task`)
+- `ECS_CONTAINER_NAME` (e.g. `two-tier-app-prod`)
+
+The workflow publishes dev tags:
 
 - `:main`
 - `:sha-<git sha>`
 
-ECS deploys the immutable `:sha-<git sha>` tag for the commit that passed CI and the Trivy image scan. Terraform ignores ECS service `task_definition` drift so future app deployments are not rolled back by normal infrastructure applies.
+Dev ECS deploys the immutable `:sha-<git sha>` tag for the commit that passed CI and Trivy. Terraform ignores ECS service `task_definition` drift so future app deployments are not rolled back by normal infrastructure applies.
+
+Prod promotion is optional and cost-conscious. To promote an image, open GitHub Actions, run the `ci-cd` workflow manually, set `promote_prod` to `true`, and provide the Git SHA without the `sha-` prefix. The workflow copies `sha-<git sha>` from dev ECR to prod ECR, also tags it as `prod`, and deploys that same image to prod ECS. The prod environment can require manual approval in GitHub Environment protection rules.
 
 ### 4b) Build + push manually (optional)
 
@@ -230,7 +245,7 @@ This is intentionally minimal: no migrations, no auth, no advanced features.
 - **Secrets** are generated and stored in Secrets Manager.
 - **ECS tasks have no public IPs**, and are reachable only via the ALB.
 - **CloudWatch**: logs are shipped to a log group with retention; alarms and a dashboard can be toggled via variables.
-- **Container scanning**: GitHub Actions scans the deploy image with Trivy before pushing to ECR. The pipeline blocks fixable critical vulnerabilities; unfixed base-image CVEs are kept visible in scanner output and remediated when upstream fixes become available.
+- **Container scanning**: GitHub Actions scans images with Trivy during PR/build validation and again before deployment. The pipeline blocks fixable critical vulnerabilities; unfixed base-image CVEs are kept visible in scanner output and remediated when upstream fixes become available. Prod promotion, when used, copies the exact SHA-tagged image from dev ECR instead of rebuilding it.
 - **ALB access logs** are stored in S3 (encrypted + versioned + public access blocked).
 
 ## Destroy / cleanup

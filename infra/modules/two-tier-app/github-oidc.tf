@@ -53,7 +53,13 @@ resource "aws_iam_role_policy" "github_actions_ecr_policy" {
         Action = [
           "ecr:BatchCheckLayerAvailability",
           "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage",
+          "ecr:BatchGetImage"
+        ]
+        Resource = "arn:aws:ecr:${var.region}:${data.aws_caller_identity.current.account_id}:repository/${var.project}-*"
+      },
+      {
+        Effect = "Allow"
+        Action = [
           "ecr:InitiateLayerUpload",
           "ecr:UploadLayerPart",
           "ecr:CompleteLayerUpload",

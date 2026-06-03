@@ -5,6 +5,16 @@ on:
   push:
     branches: ["main"]
   workflow_dispatch:
+    inputs:
+      deploy_prod:
+        description: "Promote an existing dev image SHA to prod"
+        required: false
+        type: boolean
+        default: false
+      image_sha:
+        description: "Git SHA to promote, without the sha- prefix"
+        required: false
+        type: string
 
 permissions:
   contents: read
@@ -84,6 +94,7 @@ jobs:
   deploy_dev:
     runs-on: ubuntu-latest
     needs: [build]
+    environment: dev
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     concurrency:
       group: deploy_dev
@@ -144,6 +155,74 @@ jobs:
           image: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/${{ vars.ECR_REPO }}:sha-${{ github.sha }}
 
       - name: Deploy ECS task definition
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v2
+        with:
+          task-definition: ${{ steps.render-task-definition.outputs.task-definition }}
+          service: ${{ vars.ECS_SERVICE }}
+          cluster: ${{ vars.ECS_CLUSTER }}
+          wait-for-service-stability: true
+          wait-for-minutes: 15
+
+
+  deploy_prod:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch' && inputs.deploy_prod == true
+    environment: prod
+    concurrency:
+      group: deploy_prod
+      cancel-in-progress: false
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Validate promotion input
+        run: |
+          if [ -z "${{ inputs.image_sha }}" ]; then
+            echo "image_sha is required when deploy_prod is true"
+            exit 1
+          fi
+
+      - name: Configure AWS creds (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ vars.OIDC_ROLE_ARN }}
+
+      - name: Promote image from dev ECR to prod ECR
+        run: |
+          image_tag="sha-${{ inputs.image_sha }}"
+          image_manifest=$(aws ecr batch-get-image \
+            --repository-name "${{ vars.SOURCE_ECR_REPO }}" \
+            --image-ids imageTag="$image_tag" \
+            --query 'images[0].imageManifest' \
+            --output text)
+
+          if [ -z "$image_manifest" ] || [ "$image_manifest" = "None" ]; then
+            echo "Image tag $image_tag was not found in ${{ vars.SOURCE_ECR_REPO }}"
+            exit 1
+          fi
+
+          aws ecr put-image \
+            --repository-name "${{ vars.ECR_REPO }}" \
+            --image-tag "$image_tag" \
+            --image-manifest "$image_manifest"
+
+          aws ecr put-image \
+            --repository-name "${{ vars.ECR_REPO }}" \
+            --image-tag prod \
+            --image-manifest "$image_manifest"
+
+      - name: Fill in the promoted image ID in the Amazon ECS task definition
+        id: render-task-definition
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition-family: ${{ vars.ECS_TASK_FAMILY }}
+          container-name: ${{ vars.ECS_CONTAINER_NAME }}
+          image: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/${{ vars.ECR_REPO }}:sha-${{ inputs.image_sha }}
+
+      - name: Deploy ECS task definition to prod
         uses: aws-actions/amazon-ecs-deploy-task-definition@v2
         with:
           task-definition: ${{ steps.render-task-definition.outputs.task-definition }}

@@ -183,29 +183,22 @@ jobs:
           aws-region: ${{ vars.AWS_REGION }}
           role-to-assume: ${{ vars.OIDC_ROLE_ARN }}
 
+      - name: Login to ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
       - name: Promote image from dev ECR to prod ECR
         run: |
           image_tag="sha-${{ inputs.image_sha }}"
-          image_manifest=$(aws ecr batch-get-image \
-            --repository-name "${{ vars.SOURCE_ECR_REPO }}" \
-            --image-ids imageTag="$image_tag" \
-            --query 'images[0].imageManifest' \
-            --output text)
+          registry="${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com"
+          source_image="$registry/${{ vars.SOURCE_ECR_REPO }}:$image_tag"
+          prod_sha_image="$registry/${{ vars.ECR_REPO }}:$image_tag"
+          prod_latest_image="$registry/${{ vars.ECR_REPO }}:prod"
 
-          if [ -z "$image_manifest" ] || [ "$image_manifest" = "None" ]; then
-            echo "Image tag $image_tag was not found in ${{ vars.SOURCE_ECR_REPO }}"
-            exit 1
-          fi
-
-          aws ecr put-image \
-            --repository-name "${{ vars.ECR_REPO }}" \
-            --image-tag "$image_tag" \
-            --image-manifest "$image_manifest"
-
-          aws ecr put-image \
-            --repository-name "${{ vars.ECR_REPO }}" \
-            --image-tag prod \
-            --image-manifest "$image_manifest"
+          docker pull "$source_image"
+          docker tag "$source_image" "$prod_sha_image"
+          docker tag "$source_image" "$prod_latest_image"
+          docker push "$prod_sha_image"
+          docker push "$prod_latest_image"
 
       - name: Fill in the promoted image ID in the Amazon ECS task definition
         id: render-task-definition

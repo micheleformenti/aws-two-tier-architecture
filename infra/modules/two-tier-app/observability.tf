@@ -32,6 +32,7 @@ resource "aws_sns_topic_subscription" "alarm_email" {
 resource "aws_s3_bucket" "alb_access_logs" {
   count  = var.enable_alb_access_logs ? 1 : 0
   bucket = local.alb_access_logs_bucket_name
+  force_destroy = true
 
   tags = {
     Name    = "${var.project}-${var.env}-alb-access-logs"

@@ -28,6 +28,7 @@ env:
 jobs:
   checks:
     runs-on: ubuntu-latest
+    if: github.event_name != 'workflow_dispatch' || inputs.deploy_prod != true
     steps:
       - name: Checkout
         uses: actions/checkout@v6
@@ -65,6 +66,13 @@ jobs:
   build:
     runs-on: ubuntu-latest
     needs: [checks]
+    if: github.event_name != 'workflow_dispatch' || inputs.deploy_prod != true
+    environment: dev
+
+    permissions:
+      id-token: write
+      contents: read
+
     steps:
       - uses: actions/checkout@v6
 
@@ -91,6 +99,26 @@ jobs:
           severity: CRITICAL
           vuln-type: os,library
 
+      - name: Configure AWS creds (OIDC)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-region: ${{ vars.AWS_REGION }}
+          role-to-assume: ${{ vars.OIDC_ROLE_ARN }}
+
+      - name: Login to ECR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Tag and push Docker image to ECR
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          ecr_image="${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/${{ vars.ECR_REPO }}"
+          docker tag two-tier-app:${{ github.sha }} "$ecr_image:sha-${{ github.sha }}"
+          docker tag two-tier-app:${{ github.sha }} "$ecr_image:main"
+          docker push "$ecr_image:sha-${{ github.sha }}"
+          docker push "$ecr_image:main"
+
   deploy_dev:
     runs-on: ubuntu-latest
     needs: [build]
@@ -105,46 +133,11 @@ jobs:
       contents: read
       
     steps:
-      - uses: actions/checkout@v6
-
       - name: Configure AWS creds (OIDC)
         uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: ${{ vars.AWS_REGION }}
           role-to-assume: ${{ vars.OIDC_ROLE_ARN }}
-
-      - name: Login to ECR
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - uses: docker/setup-buildx-action@v4
-
-      - name: Build Docker image for scan
-        uses: docker/build-push-action@v7
-        with:
-          context: ${{ env.BUILD_CONTEXT_DIR }}
-          file: ${{ env.DOCKERFILE }}
-          push: false
-          load: true
-          tags: |
-            ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/${{ vars.ECR_REPO }}:sha-${{ github.sha }}
-            ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/${{ vars.ECR_REPO }}:main
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      - name: Scan Docker image with Trivy
-        uses: aquasecurity/trivy-action@v0.36.0
-        with:
-          image-ref: ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/${{ vars.ECR_REPO }}:sha-${{ github.sha }}
-          format: table
-          exit-code: "1"
-          ignore-unfixed: true
-          severity: CRITICAL
-          vuln-type: os,library
-
-      - name: Push Docker image to ECR
-        run: |
-          docker push ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/${{ vars.ECR_REPO }}:sha-${{ github.sha }}
-          docker push ${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/${{ vars.ECR_REPO }}:main
 
       - name: Fill in the new image ID in the Amazon ECS task definition
         id: render-task-definition

@@ -158,8 +158,8 @@ This repository includes a workflow at `.github/workflows/ci-cd.yml` that:
 
 - Runs Ruff and pytest checks
 - Builds the Docker image from `app/Dockerfile`
-- Scans the image with Trivy on PRs and again before deployment
-- On pushes to `main`, assumes the dev OIDC role, pushes to dev ECR, registers a new ECS task definition revision, and updates the dev ECS service
+- Scans the built image with Trivy
+- On pushes to `main`, assumes the dev OIDC role, tags and pushes the same scanned image to dev ECR, registers a new ECS task definition revision, and updates the dev ECS service
 - Optionally promotes an existing SHA-tagged image from dev ECR to prod ECR through a manual `workflow_dispatch` run
 
 Configure these GitHub **Environment variables** for the `dev` environment:
@@ -245,7 +245,7 @@ This is intentionally minimal: no migrations, no auth, no advanced features.
 - **Secrets** are generated and stored in Secrets Manager.
 - **ECS tasks have no public IPs**, and are reachable only via the ALB.
 - **CloudWatch**: logs are shipped to a log group with retention; alarms and a dashboard can be toggled via variables.
-- **Container scanning**: GitHub Actions scans images with Trivy during PR/build validation and again before deployment. The pipeline blocks fixable critical vulnerabilities; unfixed base-image CVEs are kept visible in scanner output and remediated when upstream fixes become available. Prod promotion, when used, copies the exact SHA-tagged image from dev ECR instead of rebuilding it.
+- **Container scanning**: GitHub Actions scans the built image with Trivy before any ECR push or ECS deployment. The pipeline blocks fixable critical vulnerabilities; unfixed base-image CVEs are kept visible in scanner output and remediated when upstream fixes become available. Prod promotion, when used, copies the exact SHA-tagged image from dev ECR instead of rebuilding it.
 - **ALB access logs** are stored in S3 (encrypted + versioned + public access blocked).
 
 ## Destroy / cleanup

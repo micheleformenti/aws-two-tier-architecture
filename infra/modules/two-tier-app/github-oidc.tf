@@ -67,6 +67,7 @@ resource "aws_iam_role_policy" "github_actions_ecr_policy" {
           "ecs:DescribeServices",
           "ecs:DescribeTaskDefinition",
           "ecs:RegisterTaskDefinition",
+          "ecs:TagResource",
           "ecs:UpdateService"
         ]
         Resource = "*"

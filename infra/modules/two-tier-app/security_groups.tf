@@ -61,7 +61,7 @@ resource "aws_vpc_security_group_ingress_rule" "allow_alb_to_tasks_ipv4" {
 }
 
 data "aws_prefix_list" "s3" {
-  name = "com.amazonaws.${data.aws_region.current.id}.s3"
+  name = "com.amazonaws.${data.aws_region.current.region}.s3"
 }
 
 # Tight task egress (no NAT):

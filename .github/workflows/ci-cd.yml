@@ -100,18 +100,18 @@ jobs:
           vuln-type: os,library
 
       - name: Configure AWS creds (OIDC)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_DEV_ENABLED == 'true'
         uses: aws-actions/configure-aws-credentials@v6
         with:
           aws-region: ${{ vars.AWS_REGION }}
           role-to-assume: ${{ vars.OIDC_ROLE_ARN }}
 
       - name: Login to ECR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_DEV_ENABLED == 'true'
         uses: aws-actions/amazon-ecr-login@v2
 
       - name: Tag and push Docker image to ECR
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_DEV_ENABLED == 'true'
         run: |
           ecr_image="${{ vars.AWS_ACCOUNT_ID }}.dkr.ecr.${{ vars.AWS_REGION }}.amazonaws.com/${{ vars.ECR_REPO }}"
           docker tag two-tier-app:${{ github.sha }} "$ecr_image:sha-${{ github.sha }}"
@@ -123,7 +123,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build]
     environment: dev
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_DEV_ENABLED == 'true'
     concurrency:
       group: deploy_dev
       cancel-in-progress: false

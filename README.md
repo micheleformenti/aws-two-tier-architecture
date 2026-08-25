@@ -159,7 +159,7 @@ This repository includes a workflow at `.github/workflows/ci-cd.yml` that:
 - Runs Ruff and pytest checks
 - Builds the Docker image from `app/Dockerfile`
 - Scans the built image with Trivy
-- On pushes to `main`, assumes the dev OIDC role, tags and pushes the same scanned image to dev ECR, registers a new ECS task definition revision, and updates the dev ECS service
+- On pushes to `main`, when dev deployment is enabled, assumes the dev OIDC role, tags and pushes the same scanned image to dev ECR, registers a new ECS task definition revision, and updates the dev ECS service
 - Optionally promotes an existing SHA-tagged image from dev ECR to prod ECR through a manual `workflow_dispatch` run
 
 Configure these GitHub **Environment variables** for the `dev` environment:
@@ -172,6 +172,11 @@ Configure these GitHub **Environment variables** for the `dev` environment:
 - `ECS_SERVICE` (dev Terraform output: `ecs_service_name`)
 - `ECS_TASK_FAMILY` (e.g. `two-tier-app-dev-task`)
 - `ECS_CONTAINER_NAME` (e.g. `two-tier-app-dev`)
+
+Also configure the repository-level variable `DEPLOY_DEV_ENABLED`. Set it to `true`
+only while the dev infrastructure exists. Leave it unset or set it to `false` while
+the environment is torn down; CI will still lint, test, build, and scan the image,
+but it will skip the ECR push and ECS deployment.
 
 If you provision prod, configure these GitHub **Environment variables** for the `prod` environment:
 
